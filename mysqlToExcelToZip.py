@@ -65,6 +65,23 @@ class MYSQL:
                 sheet.write(row, col, u'%s' % results[row-1][col])
  
         workbook.save(output_path)
+
+    #直接执行SQL语句的一些操作
+    def sqlTask(self, sql):
+        self._cursor = self._connect.cursor()
+        try:
+            count = self._cursor.execute(sql)
+            # 重置游标的位置
+            self._cursor.scroll(0, mode='absolute')
+            results = self._cursor.fetchall()
+            fields = self._cursor.description
+
+            for row in range(0,len(results)):
+                for col in range(0, len(fields)):
+                    print(u'%s' % results[row][col]),
+                print("")
+        except:
+            print("Error: unable to fecth data")
  
  
 def zipDir(dirpath,outFullName):
