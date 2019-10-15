@@ -1,22 +1,29 @@
+/**
+ * reStartSrver.go：监控某个文件夹下的文件是否有变化，当配置文件发生变化的时候，发送SIGHUP信号给指定进（这里测试使用的是server.go）
+ * 设置CD每60秒内只能发送一次SIGHUP
+ * Create By ChenWenBo
+ * 2019-10-15
+ */
 package main
 
 import (
-	"github.com/fsnotify"
+	"github.com/howeyc/fsnotify"
 	"log"
 	"os/exec"
-	"fmt"
 	"strings"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 func main() {
-	processName := "main"
+	processName := "server"  //需要重启的进程
+	filePath := "."          //监控的配置文件的位置
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	lastTime := 0
 	done := make(chan bool)
 
 	go func() {
@@ -24,23 +31,23 @@ func main() {
 			select {
 			case ev := <-watcher.Event:
 				log.Println("event:", ev)
-				log.Println("notify runner to do the ln -s and restart server.")
-				//查找进程
-				pids := findProcessExist(processName)
-				if len(pids) > 0 {
-					for _,v := range pids {
-						syscall.Kill(v, syscall.SIGTERM)
+				if int(time.Now().Unix()) - lastTime > 60 {
+					lastTime = int(time.Now().Unix())
+					//查找进程
+					pids := findProcessExist(processName)
+					if len(pids) > 0 {
+						for _, v := range pids {
+							syscall.Kill(v, syscall.SIGHUP)
+						}
 					}
 				}
-				execProcess(processName)
-
 			case err := <-watcher.Error:
 				log.Println("error:", err)
 			}
 		}
 	}()
 
-	err = watcher.Watch(".")
+	err = watcher.Watch(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -53,6 +60,7 @@ func main() {
 // 查找进程
 func findProcessExist(appName string) []int {
 	var pids []int
+	// ps -ef | grep main | grep -v 'grep ' | awk '{print $2}'
 	cmd := exec.Command("bash", "-c", "ps -ef | grep " + appName + " | grep -v 'grep ' | awk '{print $2}'")
 	output, _ := cmd.Output()
 	fields := strings.Fields(string(output))
@@ -65,14 +73,4 @@ func findProcessExist(appName string) []int {
 	}
 
 	return pids
-}
-
-// 启动进程
-func execProcess(appName string) {
-
-	path := "./"    // app路径
-
-	cmd := exec.Command(path + appName)
-	cmd.Output()
-	fmt.Println(appName, "进程启动")
 }
